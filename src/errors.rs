@@ -12,6 +12,8 @@ pub enum Errors {
     InvalidFile(#[from] string::FromUtf8Error),
     #[error("Invalid json")]
     InvalidJson(#[from] serde_json::Error),
+    #[error("Error during {0} fase, the error was:\n{1}")]
+    ProcessError(&'static str, String),
     #[error("Unknown error")]
     Unknown,
 }
