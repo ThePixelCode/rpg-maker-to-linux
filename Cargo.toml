@@ -1,5 +1,5 @@
 [package]
-name = "rpg-maker-to-linux"
+name = "rpg2linux"
 version = "0.1.0"
 edition = "2021"
 
