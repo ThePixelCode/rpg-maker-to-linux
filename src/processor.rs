@@ -117,9 +117,9 @@ impl Process {
     }
 
     pub fn execute(&self) -> Result<(), Errors> {
-        self.check_conditions()?;
+        //self.check_conditions()?;
         self.execute_pre_op()?;
-        self.execute_asociated()?;
+        //self.execute_asociated()?;
         self.execute_nwjs()?;
         self.execute_post_op()?;
         Ok(())
