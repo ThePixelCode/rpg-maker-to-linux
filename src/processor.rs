@@ -1,35 +1,30 @@
-use std::{
-    env::{args, current_dir},
-    fs::{create_dir_all, hard_link, read_dir, remove_dir_all, rename, File},
-    io::{copy, Read, Write},
-    os::unix::fs,
-    path::{Path, PathBuf},
-    process::Command,
-};
+use std::{env, fs, io, io::Read, os::unix, path, process};
 
 use flate2::read::GzDecoder;
 use reqwest::blocking::Client;
 use tar::Archive;
 
-use crate::{config::Config, errors::Errors, NWJS_NORMAL_URL_FORMAT, NWJS_URL};
+use crate::{
+    config::Config, copy_files_recursively, errors::Errors, NWJS_NORMAL_URL_FORMAT, NWJS_URL,
+};
 
 pub struct Process {
-    working_directory: PathBuf,
+    working_directory: path::PathBuf,
     config: Config,
 }
 
 impl Process {
     pub fn new() -> Result<Self, Errors> {
-        let mut working_directory = current_dir()?;
-        let args = args();
+        let mut working_directory = env::current_dir()?;
+        let args = env::args();
         for arg in args {
-            let path = PathBuf::from(arg);
+            let path = path::PathBuf::from(arg);
             if path.exists() && path.is_dir() {
                 working_directory = path.canonicalize()?;
             }
         }
         let config_file = working_directory.join("config.json");
-        let mut config_file = File::open(&config_file)?;
+        let mut config_file = fs::File::open(&config_file)?;
         let mut json = Vec::new();
         config_file.read_to_end(&mut json)?;
         let config: Config = serde_json::from_slice(&json)?;
@@ -60,7 +55,7 @@ impl Process {
     fn execute_pre_op(&self) -> Result<(), Errors> {
         for command in &self.config.pre_operation_commands {
             print!("Running: {}...", &command);
-            let output = Command::new("sh")
+            let output = process::Command::new("sh")
                 .arg("-c")
                 .arg(command)
                 .current_dir(&self.working_directory)
@@ -82,12 +77,12 @@ impl Process {
         for asociation in &self.config.file_asociations {
             for destination in &asociation.destination_files {
                 if asociation.allows_symlink {
-                    fs::symlink(
+                    unix::fs::symlink(
                         self.working_directory.join(&asociation.origin_file),
                         self.working_directory.join(destination),
                     )?;
                 } else {
-                    hard_link(
+                    fs::hard_link(
                         self.working_directory.join(&asociation.origin_file),
                         self.working_directory.join(destination),
                     )?;
@@ -100,7 +95,7 @@ impl Process {
     fn execute_post_op(&self) -> Result<(), Errors> {
         for command in &self.config.post_operation_commands {
             print!("Running: {}...", &command);
-            let output = Command::new("sh")
+            let output = process::Command::new("sh")
                 .arg("-c")
                 .arg(command)
                 .current_dir(&self.working_directory)
@@ -128,24 +123,24 @@ impl Process {
             .replace("{url}", NWJS_URL)
             .replace("{version}", version);
 
-        create_dir_all(&target_dir)?;
-        let target_path = Path::new(target_dir).join(target_file);
+        fs::create_dir_all(&target_dir)?;
+        let target_path = path::Path::new(target_dir).join(target_file);
 
         let mut response = Client::new().get(url).send()?;
-        let mut file = File::create(&target_path)?;
+        let mut file = fs::File::create(&target_path)?;
 
-        copy(&mut response, &mut file)?;
+        io::copy(&mut response, &mut file)?;
         file.sync_all()?;
 
         Ok(())
     }
 
     fn extract_file_to_dir(&self, file: &str, target_dir: &str) -> Result<(), Errors> {
-        let file_path = Path::new(file);
-        let file = File::open(file_path)?;
-        let target_dir = Path::new(target_dir);
+        let file_path = path::Path::new(file);
+        let file = fs::File::open(file_path)?;
+        let target_dir = path::Path::new(target_dir);
 
-        create_dir_all(&target_dir)?;
+        fs::create_dir_all(&target_dir)?;
 
         let gz_decoder = GzDecoder::new(file);
         let mut tar_archive = Archive::new(gz_decoder);
@@ -154,17 +149,10 @@ impl Process {
         Ok(())
     }
 
-    fn move_files_to_working_dir(&self, source_dir: &str) -> Result<(), Errors> {
-        let source_dir = Path::new(source_dir);
-        for entry in read_dir(source_dir)? {
-            let entry = entry?;
-            let source = entry.path();
-            let target = self
-                .working_directory
-                .join(source.file_name().ok_or(Errors::Unknown)?);
+    fn remove_dir_all(&self, target_dir: &str) -> Result<(), Errors> {
+        let target_dir = path::Path::new(target_dir);
 
-            rename(source, target)?;
-        }
+        fs::remove_dir_all(&target_dir)?;
         Ok(())
     }
 
@@ -183,18 +171,31 @@ impl Process {
 
             self.download_file_to_dir(&version, "/tmp/rpg2linux", "nwjs.tar.gz")?;
 
+            println!("Download Completed");
+
             self.extract_file_to_dir("/tmp/rpg2linux/nwjs.tar.gz", "/tmp/rpg2linux/nwjs")?;
 
-            self.move_files_to_working_dir("/tmp/rpg2linux/nwjs")?;
-            //remove_dir_all(&target_dir)?;
+            println!("Extraction Completed");
+
+            copy_files_recursively(
+                path::Path::new(&format!(
+                    "/tmp/rpg2linux/nwjs/nwjs-{version}-linux-x64",
+                    version = &version
+                )),
+                &self.working_directory,
+            )?;
+
+            println!("Movement Completed");
+
+            self.remove_dir_all("/tmp/rpg2linux")?;
         }
         Ok(())
     }
 
     pub fn execute(&mut self) -> Result<(), Errors> {
-        //self.check_conditions()?;
+        self.check_conditions()?;
         self.execute_pre_op()?;
-        //self.execute_asociated()?;
+        self.execute_asociated()?;
         self.execute_nwjs()?;
         self.execute_post_op()?;
         Ok(())
