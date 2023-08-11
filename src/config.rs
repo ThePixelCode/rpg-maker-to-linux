@@ -104,7 +104,7 @@ impl NWJS {
     // }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct Config {
     // Files needed to link, because windows case insensetive
     pub file_asociations: Vec<FileAsociation>,
@@ -113,6 +113,17 @@ pub struct Config {
     // commands needed to execute the game
     pub pre_operation_commands: Vec<String>,
     pub post_operation_commands: Vec<String>,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            file_asociations: Default::default(),
+            checked_nwjs_versions: vec![NWJS::default()],
+            pre_operation_commands: Default::default(),
+            post_operation_commands: Default::default(),
+        }
+    }
 }
 
 // impl Config {
