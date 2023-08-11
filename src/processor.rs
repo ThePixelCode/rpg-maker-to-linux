@@ -24,14 +24,20 @@ impl Process {
             }
         }
         let config_file = working_directory.join("config.json");
-        let mut config_file = fs::File::open(&config_file)?;
-        let mut json = Vec::new();
-        config_file.read_to_end(&mut json)?;
-        let config: Config = serde_json::from_slice(&json)?;
-        Ok(Process {
-            working_directory,
-            config,
-        })
+        if let Ok(mut config_file) = fs::File::open(&config_file) {
+            let mut json = Vec::new();
+            config_file.read_to_end(&mut json)?;
+            let config: Config = serde_json::from_slice(&json)?;
+            return Ok(Process {
+                working_directory,
+                config,
+            });
+        } else {
+            return Ok(Process {
+                working_directory,
+                config: Config::default(),
+            });
+        }
     }
 
     fn check_conditions(&self) -> Result<(), Errors> {

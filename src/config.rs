@@ -20,10 +20,19 @@ pub struct FileAsociation {
 //     }
 // }
 
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct NWJS {
     pub nwjs_version: String,
     pub especific_nwjs_commands: Vec<String>,
+}
+
+impl Default for NWJS {
+    fn default() -> Self {
+        Self {
+            nwjs_version: String::from("*.*.*"),
+            especific_nwjs_commands: Default::default(),
+        }
+    }
 }
 
 impl PartialEq for NWJS {
