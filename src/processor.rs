@@ -118,6 +118,56 @@ impl Process {
         Ok(())
     }
 
+    fn download_file_to_dir(
+        &self,
+        version: &str,
+        target_dir: &str,
+        target_file: &str,
+    ) -> Result<(), Errors> {
+        let url = NWJS_NORMAL_URL_FORMAT
+            .replace("{url}", NWJS_URL)
+            .replace("{version}", version);
+
+        create_dir_all(&target_dir)?;
+        let target_path = Path::new(target_dir).join(target_file);
+
+        let mut response = Client::new().get(url).send()?;
+        let mut file = File::create(&target_path)?;
+
+        copy(&mut response, &mut file)?;
+        file.sync_all()?;
+
+        Ok(())
+    }
+
+    fn extract_file_to_dir(&self, file: &str, target_dir: &str) -> Result<(), Errors> {
+        let file_path = Path::new(file);
+        let file = File::open(file_path)?;
+        let target_dir = Path::new(target_dir);
+
+        create_dir_all(&target_dir)?;
+
+        let gz_decoder = GzDecoder::new(file);
+        let mut tar_archive = Archive::new(gz_decoder);
+
+        tar_archive.unpack(&target_dir)?;
+        Ok(())
+    }
+
+    fn move_files_to_working_dir(&self, source_dir: &str) -> Result<(), Errors> {
+        let source_dir = Path::new(source_dir);
+        for entry in read_dir(source_dir)? {
+            let entry = entry?;
+            let source = entry.path();
+            let target = self
+                .working_directory
+                .join(source.file_name().ok_or(Errors::Unknown)?);
+
+            rename(source, target)?;
+        }
+        Ok(())
+    }
+
     fn execute_nwjs(&mut self) -> Result<(), Errors> {
         self.config.checked_nwjs_versions.sort();
         if let Some(last) = self.config.checked_nwjs_versions.pop() {
@@ -130,41 +180,12 @@ impl Process {
                 .flat_map(|nwjs| nwjs.get_version())
                 .collect();
             println!("Other checked versions are: {:#?}", &versions);
-            let url = NWJS_NORMAL_URL_FORMAT
-                .replace("{url}", NWJS_URL)
-                .replace("{version}", &version);
-            let target_dir = "/tmp/rpg2linux";
-            let target_file = "nwjs.tar.gz";
 
-            create_dir_all(&target_dir)?;
-            let target_path = Path::new(target_dir).join(target_file);
+            self.download_file_to_dir(&version, "/tmp/rpg2linux", "nwjs.tar.gz")?;
 
-            let mut response = Client::new().get(url).send()?;
-            let mut file = File::create(&target_path)?;
+            self.extract_file_to_dir("/tmp/rpg2linux/nwjs.tar.gz", "/tmp/rpg2linux/nwjs")?;
 
-            copy(&mut response, &mut file)?;
-
-            file.sync_all()?;
-
-            let target_folder = Path::new(target_dir).join("nwjs");
-
-            create_dir_all(&target_folder)?;
-
-            let gz_decoder = GzDecoder::new(file);
-            let mut tar_archive = Archive::new(gz_decoder);
-
-            tar_archive.unpack(&target_folder)?;
-
-            for entry in read_dir(&target_folder)? {
-                let entry = entry?;
-                let source = entry.path();
-                let target = self
-                    .working_directory
-                    .join(source.file_name().ok_or(Errors::Unknown)?);
-
-                rename(source, target)?;
-            }
-
+            self.move_files_to_working_dir("/tmp/rpg2linux/nwjs")?;
             //remove_dir_all(&target_dir)?;
         }
         Ok(())
