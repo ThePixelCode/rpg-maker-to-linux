@@ -1,13 +1,17 @@
 use std::{
     env::{args, current_dir},
-    fs::{hard_link, File},
-    io::Read,
+    fs::{create_dir_all, hard_link, read_dir, remove_dir_all, rename, File},
+    io::{copy, Read, Write},
     os::unix::fs,
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::Command,
 };
 
-use crate::{config::Config, errors::Errors};
+use flate2::read::GzDecoder;
+use reqwest::blocking::Client;
+use tar::Archive;
+
+use crate::{config::Config, errors::Errors, NWJS_NORMAL_URL_FORMAT, NWJS_URL};
 
 pub struct Process {
     working_directory: PathBuf,
@@ -41,6 +45,14 @@ impl Process {
                 self.working_directory.display().to_string(),
                 "Maybe this is not a RPG Maker Game",
             ));
+        }
+        if self.config.checked_nwjs_versions.is_empty() {
+            return Err(Errors::MissingNWJSVersions);
+        }
+        for association in &self.config.file_asociations {
+            if association.destination_files.is_empty() {
+                return Err(Errors::MissingFileAssociations);
+            }
         }
         Ok(())
     }
@@ -106,17 +118,59 @@ impl Process {
         Ok(())
     }
 
-    fn execute_nwjs(&self) -> Result<(), Errors> {
-        for nwjs in &self.config.checked_nwjs_versions {
-            println!("curl {}", nwjs.nwjs_version);
-            for command in &nwjs.especific_nwjs_commands {
-                println!("{}", command);
+    fn execute_nwjs(&mut self) -> Result<(), Errors> {
+        self.config.checked_nwjs_versions.sort();
+        if let Some(last) = self.config.checked_nwjs_versions.pop() {
+            let version = last.get_version()?;
+            println!("Last version checked is {}", &version);
+            let versions: Vec<String> = self
+                .config
+                .checked_nwjs_versions
+                .iter()
+                .flat_map(|nwjs| nwjs.get_version())
+                .collect();
+            println!("Other checked versions are: {:#?}", &versions);
+            let url = NWJS_NORMAL_URL_FORMAT
+                .replace("{url}", NWJS_URL)
+                .replace("{version}", &version);
+            let target_dir = "/tmp/rpg2linux";
+            let target_file = "nwjs.tar.gz";
+
+            create_dir_all(&target_dir)?;
+            let target_path = Path::new(target_dir).join(target_file);
+
+            let mut response = Client::new().get(url).send()?;
+            let mut file = File::create(&target_path)?;
+
+            copy(&mut response, &mut file)?;
+
+            file.sync_all()?;
+
+            let target_folder = Path::new(target_dir).join("nwjs");
+
+            create_dir_all(&target_folder)?;
+
+            let gz_decoder = GzDecoder::new(file);
+            let mut tar_archive = Archive::new(gz_decoder);
+
+            tar_archive.unpack(&target_folder)?;
+
+            for entry in read_dir(&target_folder)? {
+                let entry = entry?;
+                let source = entry.path();
+                let target = self
+                    .working_directory
+                    .join(source.file_name().ok_or(Errors::Unknown)?);
+
+                rename(source, target)?;
             }
+
+            //remove_dir_all(&target_dir)?;
         }
         Ok(())
     }
 
-    pub fn execute(&self) -> Result<(), Errors> {
+    pub fn execute(&mut self) -> Result<(), Errors> {
         //self.check_conditions()?;
         self.execute_pre_op()?;
         //self.execute_asociated()?;
