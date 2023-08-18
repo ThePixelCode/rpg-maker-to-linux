@@ -83,7 +83,7 @@ impl NWJS {
     pub fn get_version(&self) -> Result<String, Errors> {
         let regex = Regex::new(&format!(
             "v{}/",
-            self.nwjs_version.replace(".", "\\.").replace("*", "\\d")
+            self.nwjs_version.replace(".", "\\.").replace("*", "\\d+")
         ))?;
 
         let response = reqwest::blocking::get(NWJS_URL)?;
