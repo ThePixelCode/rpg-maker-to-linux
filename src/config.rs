@@ -10,17 +10,7 @@ pub struct FileAsociation {
     pub allows_symlink: bool,
 }
 
-// impl FileAsociation {
-//     pub fn new(origin_file: String, destination_files: Vec<String>, allows_symlink: bool) -> Self {
-//         Self {
-//             origin_file,
-//             destination_files,
-//             allows_symlink,
-//         }
-//     }
-// }
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, Eq)]
 pub struct NWJS {
     pub nwjs_version: String,
     pub especific_nwjs_commands: Vec<String>,
@@ -40,8 +30,6 @@ impl PartialEq for NWJS {
         self.nwjs_version == other.nwjs_version
     }
 }
-
-impl Eq for NWJS {}
 
 impl PartialOrd for NWJS {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
@@ -96,12 +84,6 @@ impl NWJS {
 
         versions.pop().ok_or(Errors::Unknown)
     }
-    // pub fn new(nwjs_version: String, especific_nwjs_commands: Vec<String>) -> Self {
-    //     Self {
-    //         nwjs_version,
-    //         especific_nwjs_commands,
-    //     }
-    // }
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -125,19 +107,3 @@ impl Default for Config {
         }
     }
 }
-
-// impl Config {
-//     pub fn new(
-//         file_asociations: Vec<FileAsociation>,
-//         checked_nwjs_versions: Vec<NWJS>,
-//         pre_operation_commands: Vec<String>,
-//         post_operation_commands: Vec<String>,
-//     ) -> Self {
-//         Self {
-//             file_asociations,
-//             checked_nwjs_versions,
-//             pre_operation_commands,
-//             post_operation_commands,
-//         }
-//     }
-// }
