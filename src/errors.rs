@@ -4,6 +4,8 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum Errors {
+    #[error("User has cancelled the operation")]
+    UserCancelled,
     #[error("Cannot recognize {0}, {1}")]
     UnknownFolder(String, &'static str),
     #[error("IO Error {0}")]

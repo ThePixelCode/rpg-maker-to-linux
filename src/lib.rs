@@ -1,4 +1,4 @@
-use std::{fs, path, process};
+use std::{fs, path, process, io};
 
 use errors::Errors;
 
@@ -13,6 +13,23 @@ const NWJS_SDK_URL_FORMAT: &str = "{url}/{version}/nwjs-sdk-{version}-linux-x64.
 pub fn print_error_and_gracefully_exit(error: Errors) -> ! {
     println!("Error happened: {}", error);
     process::exit(1);
+}
+
+pub fn get_default_or_error<T: Default>(object_to_default: &str) -> Result<T, Errors> {
+    println!("Warning: {} is undefined, do you wish to use it's default value [Y/n]", object_to_default);
+
+    let mut input = String::new();
+    io::stdin().read_line(&mut input)?;
+
+    let response = input.trim().to_lowercase();
+
+    if response == "y" {
+        return Ok(T::default());
+    } else if response == "n" {
+        return Err(Errors::UserCancelled);
+    } else {
+        return Err(Errors::Unknown);
+    }
 }
 
 pub fn copy_files_recursively(
