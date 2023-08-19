@@ -1,4 +1,4 @@
-use std::{fs, path, process, io};
+use std::{fs, path, process, io, fmt::Display};
 
 use errors::Errors;
 
@@ -16,20 +16,38 @@ pub fn print_error_and_gracefully_exit(error: Errors) -> ! {
 }
 
 pub fn get_default_or_error<T: Default>(object_to_default: &str) -> Result<T, Errors> {
-    println!("Warning: {} is undefined, do you wish to use it's default value [Y/n]", object_to_default);
+    if get_user_input(&format!("Warning: {} is undefined, do you wish to use it's default value", object_to_default))? {
+        return Ok(T::default());
+    }
+    Err(Errors::UserCancelled)
+}
+
+pub fn get_user_input(prompt: &str) -> Result<bool, Errors> {
+    println!("{} [Y/n]", prompt);
 
     let mut input = String::new();
     io::stdin().read_line(&mut input)?;
 
     let response = input.trim().to_lowercase();
 
-    if response == "y" {
-        return Ok(T::default());
+    if response == "y" || response.is_empty() {
+        return Ok(true);
     } else if response == "n" {
-        return Err(Errors::UserCancelled);
-    } else {
+        return Ok(false);
+    }
+    Err(Errors::Unknown)
+}
+
+pub fn get_user_input_with_choices<T: Display>(prompt: &str, choices: &Vec<(usize, T)>) -> Result<T, Errors> {
+    if choices.is_empty() {
         return Err(Errors::Unknown);
     }
+
+    println!("{}:", prompt);
+    for (key, choice) in choices.iter() {
+        println!("{}. {}", &key, &choice);
+    }
+    todo!()
 }
 
 pub fn copy_files_recursively(

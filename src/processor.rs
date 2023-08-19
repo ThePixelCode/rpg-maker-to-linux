@@ -5,7 +5,7 @@ use reqwest::blocking::Client;
 use tar::Archive;
 
 use crate::{
-    config::Config, copy_files_recursively, errors::Errors, NWJS_NORMAL_URL_FORMAT, NWJS_URL, get_default_or_error,
+    config::Config, copy_files_recursively, errors::Errors, NWJS_NORMAL_URL_FORMAT, NWJS_URL, get_default_or_error, NWJS_SDK_URL_FORMAT, get_user_input,
 };
 
 pub fn check_directory_and_get_data(working_directory: path::PathBuf) -> Result<Data, Errors> {
@@ -58,14 +58,21 @@ pub fn process(data: Data) -> Result<(), Errors> {
     Ok(())
 }
 
+enum NWJSType {
+    NORMAL,
+    SDK,
+}
+
 fn download_file_to_dir(
     version: &str,
     target_dir: &str,
     target_file: &str,
+    nwjs_type: NWJSType
 ) -> Result<(), Errors> {
-    let url = NWJS_NORMAL_URL_FORMAT
-        .replace("{url}", NWJS_URL)
-        .replace("{version}", version);
+    let url = match nwjs_type {
+        NWJSType::NORMAL => NWJS_NORMAL_URL_FORMAT.replace("{url}", NWJS_URL).replace("{version}", version),
+        NWJSType::SDK => NWJS_SDK_URL_FORMAT.replace("{url}", NWJS_URL).replace("{version}", version),
+    };
 
     fs::create_dir_all(&target_dir)?;
     let target_path = path::Path::new(target_dir).join(target_file);
@@ -184,7 +191,11 @@ impl Data {
                 .collect();
             println!("Other checked versions are: {:#?}", &versions);
 
-            download_file_to_dir(&version, "/tmp/rpg2linux", "nwjs.tar.gz")?;
+            if get_user_input("Use SDK version of nwjs")? {
+                download_file_to_dir(&version, "/tmp/rpg2linux", "nwjs.tar.gz", NWJSType::SDK)?;
+            } else {
+                download_file_to_dir(&version, "/tmp/rpg2linux", "nwjs.tar.gz", NWJSType::NORMAL)?;
+            }
 
             println!("Download Completed");
 
