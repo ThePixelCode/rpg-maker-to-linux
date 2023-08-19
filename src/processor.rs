@@ -58,6 +58,48 @@ pub fn process(data: Data) -> Result<(), Errors> {
     Ok(())
 }
 
+fn download_file_to_dir(
+    version: &str,
+    target_dir: &str,
+    target_file: &str,
+) -> Result<(), Errors> {
+    let url = NWJS_NORMAL_URL_FORMAT
+        .replace("{url}", NWJS_URL)
+        .replace("{version}", version);
+
+    fs::create_dir_all(&target_dir)?;
+    let target_path = path::Path::new(target_dir).join(target_file);
+
+    let mut response = Client::new().get(url).send()?;
+    let mut file = fs::File::create(&target_path)?;
+
+    io::copy(&mut response, &mut file)?;
+    file.sync_all()?;
+
+    Ok(())
+}
+
+fn extract_file_to_dir(file: &str, target_dir: &str) -> Result<(), Errors> {
+    let file_path = path::Path::new(file);
+    let file = fs::File::open(file_path)?;
+    let target_dir = path::Path::new(target_dir);
+
+    fs::create_dir_all(&target_dir)?;
+
+    let gz_decoder = GzDecoder::new(file);
+    let mut tar_archive = Archive::new(gz_decoder);
+
+    tar_archive.unpack(&target_dir)?;
+    Ok(())
+}
+
+fn remove_dir_all(target_dir: &str) -> Result<(), Errors> {
+    let target_dir = path::Path::new(target_dir);
+
+    fs::remove_dir_all(&target_dir)?;
+    Ok(())
+}
+
 pub struct Data {
     working_directory: path::PathBuf,
     config: Config,
@@ -129,49 +171,6 @@ impl Data {
         Ok(())
     }
 
-    fn download_file_to_dir(
-        &self,
-        version: &str,
-        target_dir: &str,
-        target_file: &str,
-    ) -> Result<(), Errors> {
-        let url = NWJS_NORMAL_URL_FORMAT
-            .replace("{url}", NWJS_URL)
-            .replace("{version}", version);
-
-        fs::create_dir_all(&target_dir)?;
-        let target_path = path::Path::new(target_dir).join(target_file);
-
-        let mut response = Client::new().get(url).send()?;
-        let mut file = fs::File::create(&target_path)?;
-
-        io::copy(&mut response, &mut file)?;
-        file.sync_all()?;
-
-        Ok(())
-    }
-
-    fn extract_file_to_dir(&self, file: &str, target_dir: &str) -> Result<(), Errors> {
-        let file_path = path::Path::new(file);
-        let file = fs::File::open(file_path)?;
-        let target_dir = path::Path::new(target_dir);
-
-        fs::create_dir_all(&target_dir)?;
-
-        let gz_decoder = GzDecoder::new(file);
-        let mut tar_archive = Archive::new(gz_decoder);
-
-        tar_archive.unpack(&target_dir)?;
-        Ok(())
-    }
-
-    fn remove_dir_all(&self, target_dir: &str) -> Result<(), Errors> {
-        let target_dir = path::Path::new(target_dir);
-
-        fs::remove_dir_all(&target_dir)?;
-        Ok(())
-    }
-
     fn execute_nwjs(&mut self) -> Result<(), Errors> {
         self.config.checked_nwjs_versions.sort();
         if let Some(last) = self.config.checked_nwjs_versions.pop() {
@@ -185,11 +184,11 @@ impl Data {
                 .collect();
             println!("Other checked versions are: {:#?}", &versions);
 
-            self.download_file_to_dir(&version, "/tmp/rpg2linux", "nwjs.tar.gz")?;
+            download_file_to_dir(&version, "/tmp/rpg2linux", "nwjs.tar.gz")?;
 
             println!("Download Completed");
 
-            self.extract_file_to_dir("/tmp/rpg2linux/nwjs.tar.gz", "/tmp/rpg2linux/nwjs")?;
+            extract_file_to_dir("/tmp/rpg2linux/nwjs.tar.gz", "/tmp/rpg2linux/nwjs")?;
 
             println!("Extraction Completed");
 
@@ -203,7 +202,7 @@ impl Data {
 
             println!("Movement Completed");
 
-            self.remove_dir_all("/tmp/rpg2linux")?;
+            remove_dir_all("/tmp/rpg2linux")?;
         }
         Ok(())
     }
