@@ -1,61 +1,71 @@
-use std::{env, fs, io, io::Read, os::unix, path, process};
+use std::{fs, io, io::Read, os::unix, path, process};
 
 use flate2::read::GzDecoder;
 use reqwest::blocking::Client;
 use tar::Archive;
 
 use crate::{
-    config::Config, copy_files_recursively, errors::Errors, NWJS_NORMAL_URL_FORMAT, NWJS_URL,
+    config::Config, copy_files_recursively, errors::Errors, NWJS_NORMAL_URL_FORMAT, NWJS_URL, get_default_or_error,
 };
 
-pub struct Process {
+pub fn check_directory_and_get_data(working_directory: path::PathBuf) -> Result<Data, Errors> {
+    if !working_directory.join("nw.dll").exists() {
+        return Err(Errors::UnknownFolder(working_directory.display().to_string(), "Maybe this is not an RPG Maker  Game"));
+    }
+    let config = match working_directory.join("config.json").exists(){
+        true => {
+            let config_file = working_directory.join("config.json");
+            let mut file = fs::File::open(&config_file)?;
+            let mut json = Vec::new();
+            file.read_to_end(&mut json)?;
+            serde_json::from_slice::<Config>(&json)?
+        },
+        false => {
+            println!("No config found, Use default? [Y/n]");
+
+            let mut input = String::new();
+            io::stdin().read_line(&mut input)?;
+
+            let response = input.trim().to_lowercase();
+
+            if response != "y" {
+                return Err(Errors::UserCancelled);
+            }
+            Config::default()
+        }
+    };
+    Ok(Data::new(working_directory, config))
+}
+
+pub fn check_and_correct_data(data: &mut Data) -> Result<(), Errors> {
+    if data.config.checked_nwjs_versions.is_empty() {
+        data.config.checked_nwjs_versions.push(get_default_or_error("Checked NWJS Version")?);
+    }
+    for association in &data.config.file_asociations {
+        if association.destination_files.is_empty() {
+            return Err(Errors::MissingFileAssociations);
+        }
+    }
+    Ok(())
+}
+
+pub fn process(data: Data) -> Result<(), Errors> {
+    let mut data = data;
+    data.execute_pre_op()?;
+    data.execute_asociated()?;
+    data.execute_nwjs()?;
+    data.execute_post_op()?;
+    Ok(())
+}
+
+pub struct Data {
     working_directory: path::PathBuf,
     config: Config,
 }
 
-impl Process {
-    pub fn new() -> Result<Self, Errors> {
-        let mut working_directory = env::current_dir()?;
-        let args = env::args();
-        for arg in args {
-            let path = path::PathBuf::from(arg);
-            if path.exists() && path.is_dir() {
-                working_directory = path.canonicalize()?;
-            }
-        }
-        let config_file = working_directory.join("config.json");
-        if let Ok(mut config_file) = fs::File::open(&config_file) {
-            let mut json = Vec::new();
-            config_file.read_to_end(&mut json)?;
-            let config: Config = serde_json::from_slice(&json)?;
-            return Ok(Process {
-                working_directory,
-                config,
-            });
-        } else {
-            return Ok(Process {
-                working_directory,
-                config: Config::default(),
-            });
-        }
-    }
-
-    fn check_conditions(&self) -> Result<(), Errors> {
-        if !self.working_directory.join("nw.dll").exists() {
-            return Err(Errors::UnknownFolder(
-                self.working_directory.display().to_string(),
-                "Maybe this is not a RPG Maker Game",
-            ));
-        }
-        if self.config.checked_nwjs_versions.is_empty() {
-            return Err(Errors::MissingNWJSVersions);
-        }
-        for association in &self.config.file_asociations {
-            if association.destination_files.is_empty() {
-                return Err(Errors::MissingFileAssociations);
-            }
-        }
-        Ok(())
+impl Data {
+    pub fn new(working_directory: path::PathBuf, config: Config) -> Self {
+        Data {working_directory, config}
     }
 
     fn execute_pre_op(&self) -> Result<(), Errors> {
@@ -195,15 +205,6 @@ impl Process {
 
             self.remove_dir_all("/tmp/rpg2linux")?;
         }
-        Ok(())
-    }
-
-    pub fn execute(&mut self) -> Result<(), Errors> {
-        self.check_conditions()?;
-        self.execute_pre_op()?;
-        self.execute_asociated()?;
-        self.execute_nwjs()?;
-        self.execute_post_op()?;
         Ok(())
     }
 }

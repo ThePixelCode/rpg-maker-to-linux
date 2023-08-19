@@ -3,7 +3,7 @@ use std::{fs, path, process, io};
 use errors::Errors;
 
 mod config;
-mod errors;
+pub mod errors;
 pub mod processor;
 
 const NWJS_URL: &str = "https://dl.nwjs.io";
