@@ -38,7 +38,7 @@ pub fn get_user_input(prompt: &str) -> Result<bool, Errors> {
     Err(Errors::Unknown)
 }
 
-pub fn get_user_input_with_choices<T: Display>(prompt: &str, choices: &Vec<(usize, T)>) -> Result<T, Errors> {
+pub fn get_user_input_with_choices<T: Display + Copy>(prompt: &str, choices: &Vec<(usize, T)>) -> Result<T, Errors> {
     if choices.is_empty() {
         return Err(Errors::Unknown);
     }
@@ -47,7 +47,13 @@ pub fn get_user_input_with_choices<T: Display>(prompt: &str, choices: &Vec<(usiz
     for (key, choice) in choices.iter() {
         println!("{}. {}", &key, &choice);
     }
-    todo!()
+
+    let mut input = String::new();
+    io::stdin().read_line(&mut input)?;
+
+    let option = input.parse::<usize>()?;
+    let option = choices.iter().find_map(|item| if item.0 == option {return Some(item.1);}else{return None;});
+    option.ok_or(Errors::Unknown)
 }
 
 pub fn copy_files_recursively(
