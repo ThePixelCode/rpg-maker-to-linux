@@ -13,10 +13,17 @@ pub struct Args {
 
 #[derive(clap::Subcommand)]
 pub enum Commands {
+    // run <PATH>
     #[command(about = "port and run a game")]
     Run { path: String },
+    // steam-run %command%
+    // this means:
+    // steam-run reaper SteamLaunch AppId=123456 -- steam-launch-wrapper -- SteamLinuxRuntime_sniper/_v2-entry-point --verb=waitforexitandrun -- proton waitforexitandrun gamebin
+    // or
+    // steam-run reaper SteamLaunch AppId=123456 -- steam-launch-wrapper -- gamebin
     #[command(about = "port and run a game for steam")]
     SteamRun { args: Vec<String> },
+    // port <PATH>
     #[command(about = "port a game")]
     Port { path: String },
 }
