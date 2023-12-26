@@ -1,77 +1,47 @@
-use std::{fs, path, process, io, fmt::Display};
+pub mod args;
+pub mod logger;
+pub mod port;
+pub mod run;
 
-use errors::Errors;
+pub const NWJS_VERSION: &str = "v0.83.0";
 
-mod config;
-pub mod errors;
-pub mod processor;
+pub const DEBUG_ERROR: u8 = 0;
+pub const DEBUG_WARN: u8 = 1;
+pub const DEBUG_INFO: u8 = 2;
 
-const NWJS_URL: &str = "https://dl.nwjs.io";
-const NWJS_NORMAL_URL_FORMAT: &str = "{url}/{version}/nwjs-{version}-linux-x64.tar.gz";
-const NWJS_SDK_URL_FORMAT: &str = "{url}/{version}/nwjs-sdk-{version}-linux-x64.tar.gz";
-
-pub fn print_error_and_gracefully_exit(error: Errors) -> ! {
-    println!("Error happened: {}", error);
-    process::exit(1);
+pub struct GameData<P: AsRef<std::path::Path>> {
+    path: P,
+    file: std::fs::File,
+    sdk: bool,
 }
 
-pub fn get_default_or_error<T: Default>(object_to_default: &str) -> Result<T, Errors> {
-    if get_user_input(&format!("Warning: {} is undefined, do you wish to use it's default value", object_to_default))? {
-        return Ok(T::default());
+impl<P: AsRef<std::path::Path>> GameData<P> {
+    pub fn new(path: P, sdk: bool) -> Result<Self, std::io::Error> {
+        let file = std::fs::OpenOptions::new()
+            .write(true)
+            .read(true)
+            .open(path.as_ref().join("package.json"))?;
+        Ok(GameData { path, file, sdk })
     }
-    Err(Errors::UserCancelled)
 }
 
-pub fn get_user_input(prompt: &str) -> Result<bool, Errors> {
-    println!("{} [Y/n]", prompt);
-
-    let mut input = String::new();
-    io::stdin().read_line(&mut input)?;
-
-    let response = input.trim().to_lowercase();
-
-    if response == "y" || response.is_empty() {
-        return Ok(true);
-    } else if response == "n" {
-        return Ok(false);
-    }
-    Err(Errors::Unknown)
+#[derive(thiserror::Error, Debug)]
+pub enum GeneralErrors {
+    #[error("Error getting cache folder")]
+    GettingCacheFolderError,
+    #[error("Error found while setting cache folders error was {0}")]
+    SettingCacheFolderError(#[from] std::io::Error),
 }
 
-pub fn get_user_input_with_choices<T: Display + Copy>(prompt: &str, choices: &Vec<(usize, T)>) -> Result<T, Errors> {
-    if choices.is_empty() {
-        return Err(Errors::Unknown);
+pub fn get_cache_folder() -> Result<std::path::PathBuf, GeneralErrors> {
+    let user = users::get_current_username()
+        .ok_or(GeneralErrors::GettingCacheFolderError)?
+        .into_string()
+        .map_err(|_| GeneralErrors::GettingCacheFolderError)?;
+    let binding = format!("/home/{}/.cache/rpg2linux/", user);
+    let path = std::path::Path::new(&binding);
+    if !path.exists() {
+        std::fs::create_dir_all(path)?
     }
-
-    println!("{}:", prompt);
-    for (key, choice) in choices.iter() {
-        println!("{}. {}", &key, &choice);
-    }
-
-    let mut input = String::new();
-    io::stdin().read_line(&mut input)?;
-
-    let option = input.parse::<usize>()?;
-    let option = choices.iter().find_map(|item| if item.0 == option {return Some(item.1);}else{return None;});
-    option.ok_or(Errors::Unknown)
-}
-
-pub fn copy_files_recursively(
-    source_path: &path::Path,
-    target_path: &path::Path,
-) -> Result<(), Errors> {
-    if source_path.is_file() {
-        fs::copy(&source_path, &target_path)?;
-    } else if source_path.is_dir() {
-        fs::create_dir_all(&target_path)?;
-
-        for entry in fs::read_dir(&source_path)? {
-            let entry = entry?;
-            let entry_path = entry.path();
-            let target_path = target_path.join(entry_path.file_name().ok_or(Errors::Unknown)?);
-
-            copy_files_recursively(&entry_path, &target_path)?;
-        }
-    }
-    Ok(())
+    Ok(path.to_path_buf())
 }

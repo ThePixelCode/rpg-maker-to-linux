@@ -1,19 +1,41 @@
-use std::env;
-
-use rpg2linux::{print_error_and_gracefully_exit, errors, processor::{check_directory_and_get_data, check_and_correct_data, process}};
-
 fn main() {
-    match do_the_thing() {
-        Ok(_) => (),
-        Err(e) => print_error_and_gracefully_exit(e),
+    let cli = <rpg2linux::args::Args as clap::Parser>::parse();
+    let mut logger = match cli.stderr {
+        true => rpg2linux::logger::Logger::new_std(cli.verbose),
+        false => rpg2linux::logger::Logger::new("log", cli.verbose),
+    };
+    match cli.command {
+        rpg2linux::args::Commands::Run { path } => {
+            let mut game_data = match rpg2linux::GameData::new(path, cli.sdk) {
+                Ok(game_data) => game_data,
+                Err(e) => logger.error(&format!(
+                    "Error found when indexing game data, the error was {}",
+                    e
+                )),
+            };
+            match rpg2linux::port::port(&mut game_data, &mut logger) {
+                Ok(_) => (),
+                Err(e) => logger.error(&format!("{}", e)),
+            }
+            match rpg2linux::run::run_game(&mut game_data, &mut logger, Vec::new()) {
+                Ok(_) => (),
+                Err(e) => logger.error(&format!("{}", e)),
+            }
+        }
+        rpg2linux::args::Commands::Port { path } => {
+            let mut game_data = match rpg2linux::GameData::new(path, cli.sdk) {
+                Ok(game_data) => game_data,
+                Err(e) => logger.error(&format!(
+                    "Error found when indexing game data, the error was {}",
+                    e
+                )),
+            };
+            match rpg2linux::port::port(&mut game_data, &mut logger) {
+                Ok(_) => (),
+                Err(e) => logger.error(&format!("{}", e)),
+            }
+        }
+        #[allow(unreachable_patterns)]
+        _ => unimplemented!(),
     }
 }
-
-fn do_the_thing() -> Result<(), errors::Errors> {
-    let working_directory = env::current_dir()?;
-    let mut data = check_directory_and_get_data(working_directory)?;
-    check_and_correct_data(&mut data)?;
-    process(data)?;
-    Ok(())
-}
-
