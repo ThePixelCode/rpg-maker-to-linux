@@ -2,7 +2,13 @@ fn main() {
     let cli = <rpg2linux::args::Args as clap::Parser>::parse();
     let mut logger = match cli.stderr {
         true => rpg2linux::logger::Logger::new_std(cli.verbose),
-        false => rpg2linux::logger::Logger::new("logs/log", cli.verbose),
+        false => {
+            let time_secs = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            rpg2linux::logger::Logger::new(format!("logs/log-{}", time_secs), cli.verbose)
+        }
     };
     match cli.command {
         rpg2linux::args::Commands::Run { path } => {
