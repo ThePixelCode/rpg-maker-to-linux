@@ -43,7 +43,16 @@ pub fn get_cache_folder() -> Result<std::path::PathBuf, GeneralErrors> {
     if !path.exists() {
         std::fs::create_dir_all(path)?
     }
-    Ok(path.to_path_buf())
+    let folder = path.to_path_buf();
+    let logs = folder.join("logs");
+    if !logs.exists() {
+        std::fs::create_dir_all(logs)?;
+    }
+    let download = folder.join("download");
+    if !download.exists() {
+        std::fs::create_dir_all(download)?;
+    }
+    Ok(folder)
 }
 
 pub fn parse_steam_args(args: Vec<String>) -> Vec<String> {

@@ -2,7 +2,7 @@ fn main() {
     let cli = <rpg2linux::args::Args as clap::Parser>::parse();
     let mut logger = match cli.stderr {
         true => rpg2linux::logger::Logger::new_std(cli.verbose),
-        false => rpg2linux::logger::Logger::new("log", cli.verbose),
+        false => rpg2linux::logger::Logger::new("logs/log", cli.verbose),
     };
     match cli.command {
         rpg2linux::args::Commands::Run { path } => {

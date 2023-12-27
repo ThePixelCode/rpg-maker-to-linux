@@ -13,11 +13,16 @@ impl Logger {
     where
         P: AsRef<std::path::Path>,
     {
-        match std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(path)
-        {
+        match std::fs::OpenOptions::new().create(true).append(true).open(
+            match crate::get_cache_folder() {
+                Ok(folder) => folder.join(path),
+                Err(e) => {
+                    eprintln!("{}", e);
+                    eprintln!("logfile failed, defaulting to stderr");
+                    return Logger::StdOutLogger { verbose_level };
+                }
+            },
+        ) {
             Ok(file) => Logger::FileLogger {
                 file,
                 verbose_level,
