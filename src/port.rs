@@ -63,7 +63,17 @@ fn do_package_json_corrections<P>(
 where
     P: AsRef<std::path::Path>,
 {
-    package.name = String::from("asd");
+    package.name = game_data
+        .path
+        .as_ref()
+        .to_str()
+        .unwrap_or("rpgmmv")
+        .split("/")
+        .last()
+        .unwrap()
+        .replace(" ", "-")
+        .replace("\"", "-")
+        .replace("'", "-");
     logger.log(&format!("setting name to {}", &package.name));
     let package_string = serde_json::to_string_pretty(&package)?;
     std::io::Seek::rewind(&mut game_data.file)?;
