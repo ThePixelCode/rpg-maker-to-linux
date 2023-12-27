@@ -36,7 +36,7 @@ fn main() {
             }
         }
         rpg2linux::args::Commands::SteamRun { args } => {
-            let args = rpg2linux::parse_steam_args(args);
+            let mut args = rpg2linux::parse_steam_args(args);
             let mut game_data = match rpg2linux::GameData::new(args.last().unwrap(), cli.sdk) {
                 Ok(game_data) => game_data,
                 Err(e) => logger.error(&format!(
@@ -44,10 +44,28 @@ fn main() {
                     e
                 )),
             };
-            match rpg2linux::port::port(&mut game_data, &mut logger) {
+            match rpg2linux::port::prepare(&mut game_data, &mut logger) {
                 Ok(_) => (),
                 Err(e) => logger.error(&format!("{}", e)),
             }
+            let game = args.pop().unwrap();
+            args.push(format!(
+                "{}",
+                rpg2linux::get_cache_folder()
+                    .map(|folder| folder.join(match cli.sdk {
+                        true => format!(
+                            "nwjs-sdk-{0}-linux-x64/nwjs-sdk-{0}-linux-x64/nw",
+                            rpg2linux::NWJS_VERSION
+                        ),
+                        false => format!(
+                            "nwjs-{0}-linux-x64/nwjs-{0}-linux-x64/nw",
+                            rpg2linux::NWJS_VERSION
+                        ),
+                    }))
+                    .unwrap_or_else(|e| logger.error(&format!("{}", e)))
+                    .display()
+            ));
+            args.push(game);
             match rpg2linux::run::run_steam_game(args, &mut logger) {
                 Ok(_) => (),
                 Err(e) => logger.error(&format!("{}", e)),

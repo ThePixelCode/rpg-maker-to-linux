@@ -35,8 +35,6 @@ pub fn run_steam_game(
     logger: &mut crate::logger::Logger,
 ) -> Result<()> {
     let program = program_and_args.remove(0);
-    let last = program_and_args.last_mut().unwrap();
-    last.push_str("/nw");
     let args = program_and_args;
 
     logger.log("creating proccess...");

@@ -100,16 +100,10 @@ fn copy_files_recursively(
     Ok(())
 }
 
-fn patch_game<P>(
-    game_data: &mut crate::GameData<P>,
-    logger: &mut crate::logger::Logger,
-) -> Result<()>
-where
-    P: AsRef<std::path::Path>,
-{
+fn check_or_create_cache(sdk: bool, logger: &mut crate::logger::Logger) -> Result<()> {
     let folder = crate::get_cache_folder()?.join("download");
     std::fs::create_dir_all(folder.clone())?;
-    let size = match std::fs::metadata(folder.join(match game_data.sdk {
+    let size = match std::fs::metadata(folder.join(match sdk {
         true => format!("nwjs-sdk-{}-linux-x64.tar.gz", crate::NWJS_VERSION),
         false => format!("nwjs-{}-linux-x64.tar.gz", crate::NWJS_VERSION),
     })) {
@@ -120,7 +114,7 @@ where
 
     let mut local_file = match size {
         0 => {
-            let url = match game_data.sdk {
+            let url = match sdk {
                 true => {
                     format!(
                         "https://dl.nwjs.io/{0}/nwjs-sdk-{0}-linux-x64.tar.gz",
@@ -143,7 +137,7 @@ where
                 .create(true)
                 .write(true)
                 .read(true)
-                .open(folder.join(match game_data.sdk {
+                .open(folder.join(match sdk {
                     true => format!("nwjs-sdk-{}-linux-x64.tar.gz", crate::NWJS_VERSION),
                     false => format!("nwjs-{}-linux-x64.tar.gz", crate::NWJS_VERSION),
                 }))?;
@@ -159,14 +153,14 @@ where
                 .create(true)
                 .write(true)
                 .read(true)
-                .open(folder.join(match game_data.sdk {
+                .open(folder.join(match sdk {
                     true => format!("nwjs-sdk-{}-linux-x64.tar.gz", crate::NWJS_VERSION),
                     false => format!("nwjs-{}-linux-x64.tar.gz", crate::NWJS_VERSION),
                 }))?
         }
     };
 
-    let folder = crate::get_cache_folder()?.join(match game_data.sdk {
+    let folder = crate::get_cache_folder()?.join(match sdk {
         true => format!("nwjs-sdk-{}-linux-x64", crate::NWJS_VERSION),
         false => format!("nwjs-{}-linux-x64", crate::NWJS_VERSION),
     });
@@ -181,12 +175,28 @@ where
     } else {
         logger.warn(&format!(
             "cache found, using it, if fails please delete .cache/rpg2linux/{}",
-            match game_data.sdk {
+            match sdk {
                 true => format!("nwjs-sdk-{}-linux-x64", crate::NWJS_VERSION),
                 false => format!("nwjs-{}-linux-x64", crate::NWJS_VERSION),
             }
         ));
     }
+    Ok(())
+}
+
+fn patch_game<P>(
+    game_data: &mut crate::GameData<P>,
+    logger: &mut crate::logger::Logger,
+) -> Result<()>
+where
+    P: AsRef<std::path::Path>,
+{
+    check_or_create_cache(game_data.sdk, logger)?;
+
+    let folder = crate::get_cache_folder()?.join(match game_data.sdk {
+        true => format!("nwjs-sdk-{}-linux-x64", crate::NWJS_VERSION),
+        false => format!("nwjs-{}-linux-x64", crate::NWJS_VERSION),
+    });
 
     copy_files_recursively(
         &folder.join(match game_data.sdk {
@@ -216,5 +226,23 @@ where
         }
     }
     patch_game(game_data, logger)?;
+    Ok(())
+}
+
+pub fn prepare<P>(
+    game_data: &mut crate::GameData<P>,
+    logger: &mut crate::logger::Logger,
+) -> Result<()>
+where
+    P: AsRef<std::path::Path>,
+{
+    match check_package_json(game_data, logger)? {
+        CheckResult::Ok => logger.log("package.json is correct setted"),
+        CheckResult::ErrorsFound(package) => {
+            logger.warn("package.json has some errors tring to correct it");
+            do_package_json_corrections(game_data, package, logger)?
+        }
+    }
+    check_or_create_cache(game_data.sdk, logger)?;
     Ok(())
 }
