@@ -102,7 +102,6 @@ fn copy_files_recursively(
 
 fn check_or_create_cache(sdk: bool, logger: &mut crate::logger::Logger) -> Result<()> {
     let folder = crate::get_cache_folder()?.join("download");
-    std::fs::create_dir_all(folder.clone())?;
     let size = match std::fs::metadata(folder.join(match sdk {
         true => format!("nwjs-sdk-{}-linux-x64.tar.gz", crate::NWJS_VERSION),
         false => format!("nwjs-{}-linux-x64.tar.gz", crate::NWJS_VERSION),
