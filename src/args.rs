@@ -7,7 +7,7 @@ pub struct Args {
     pub command: Commands,
     #[arg(short, long, help = "use nwjs with sdk")]
     pub sdk: bool,
-    #[arg(long, help = "use stderr instead of log file")]
+    #[arg(short = 'S', long, help = "use stderr instead of log file")]
     pub stderr: bool,
 }
 
